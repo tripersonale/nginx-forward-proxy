@@ -77,7 +77,7 @@ mkdir -p "$LOG_DIR"
 chown nobody:nogroup "$LOG_DIR" 2>/dev/null || chown nobody:root "$LOG_DIR"
 
 # ---------- Step 7: Write nginx.conf ----------
-echo "[8/8] Write nginx config, systemd unit, and firewall..."
+echo "[8/8] Write nginx config, systemd unit, firewall, and logrotate..."
 
 cat > "${NGINX_DIR}/conf/nginx.conf" << NGINX_EOF
 user  nobody nogroup;
@@ -176,6 +176,22 @@ ufw default deny incoming
 ufw default allow outgoing
 ufw allow from "${SUBNET}" to any port 22 proto tcp comment 'SSH'
 ufw allow from "${SUBNET}" to any port "${PORT}" proto tcp comment 'nginx forward proxy'
+
+# Logrotate (retention 90 giorni, compressione)
+cat > /etc/logrotate.d/nginx-proxy << LOGROTATE_EOF
+${LOG_DIR}/proxy_access.log ${LOG_DIR}/proxy_error.log {
+    daily
+    rotate 90
+    missingok
+    notifempty
+    compress
+    delaycompress
+    sharedscripts
+    postrotate
+        [ -f ${PID_FILE} ] && kill -USR1 \$(cat ${PID_FILE})
+    endscript
+}
+LOGROTATE_EOF
 
 # ---------- Start service ----------
 systemctl daemon-reload

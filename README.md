@@ -760,6 +760,8 @@ Questo script verifica automaticamente:
 - [x] Blocco IP non autorizzati
 - [x] Firewall UFW attivo
 - [x] Servizio systemd attivo
+- [x] Logrotate configurato (90 giorni retention)
+- [x] Logging completo (sorgente, FQDN, IP risolto HTTP e HTTPS)
 
 Ogni test mostra ✅ o ❌.
 
