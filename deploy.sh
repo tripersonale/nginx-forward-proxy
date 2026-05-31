@@ -6,7 +6,7 @@
 #
 # Dipendenze: git, wget, ca-certificates (installate dallo script)
 # Variabili richieste: nessuna
-# Rollback: sudo systemctl stop nginx && sudo rm -rf /usr/local/nginx /usr/local/nginx/conf /etc/systemd/system/nginx.service
+# Rollback: sudo systemctl stop nginx && sudo rm -rf /usr/local/nginx /etc/systemd/system/nginx.service
 
 set -euo pipefail
 

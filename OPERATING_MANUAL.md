@@ -239,9 +239,15 @@ nginx -t && systemctl reload nginx
 ### 3.4 Aggiungere autenticazione (username/password)
 
 ```bash
-# Crea file password
+# Installa htpasswd (viene da apache2-utils, non preinstallato)
+apt-get install -y apache2-utils
+
+# Crea file password (solo la prima volta con -c, dopo senza)
 htpasswd -c /usr/local/nginx/conf/.htpasswd proxyuser
 # Inserisci password due volte
+
+# Per aggiungere altri utenti (SENZA -c, altrimenti sovrascrive il file)
+htpasswd /usr/local/nginx/conf/.htpasswd altro-utente
 
 # Aggiungi al blocco server { } in nginx.conf:
 ```
@@ -301,7 +307,7 @@ tail -f /var/log/nginx/proxy_access.log
 tail -f /var/log/nginx/proxy_error.log
 
 # Statistiche: top 10 siti visitati
-awk -F'"' '{print $8}' /var/log/nginx/proxy_access.log | sort | uniq -c | sort -rn | head -10
+grep -oP 'host="\K[^"]+' /var/log/nginx/proxy_access.log | sort | uniq -c | sort -rn | head -10
 
 # Statistiche: richieste per IP client
 awk '{print $1}' /var/log/nginx/proxy_access.log | sort | uniq -c | sort -rn
@@ -509,7 +515,7 @@ tail -f /var/log/nginx/proxy_error.log
 # Statistiche
 awk '{print $1}' /var/log/nginx/proxy_access.log | sort | uniq -c | sort -rn     # Top client
 grep ' 403 ' /var/log/nginx/proxy_access.log | wc -l                              # Blocchi
-awk -F'"' '{print $8}' /var/log/nginx/proxy_access.log | sort | uniq -c | sort -rn | head  # Top host
+grep -oP 'host="\K[^"]+' /var/log/nginx/proxy_access.log | sort | uniq -c | sort -rn | head  # Top host
 
 # Rotazione
 logrotate -f /etc/logrotate.d/nginx-proxy

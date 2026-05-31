@@ -371,8 +371,11 @@ systemctl reload nginx
 # Vedi log in tempo reale
 tail -f /var/log/nginx/proxy_access.log
 
-# Conta richieste per host
-awk -F'"' '/upstream=/ {print $7}' /var/log/nginx/proxy_access.log | sort | uniq -c | sort -rn
+# Conta richieste per host (top 10)
+grep -oP 'host="\K[^"]+' /var/log/nginx/proxy_access.log | sort | uniq -c | sort -rn | head
+
+# Conta richieste per IP client
+awk '{print $1}' /var/log/nginx/proxy_access.log | sort | uniq -c | sort -rn | head
 
 # Errori
 tail -f /var/log/nginx/proxy_error.log
