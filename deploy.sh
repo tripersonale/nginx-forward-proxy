@@ -100,6 +100,7 @@ http {
                              '"\$http_referer" "\$http_user_agent" '
                              'host="\$http_host" '
                              'upstream="\$upstream_addr" '
+                             'connect_addr="\$connect_addr" '
                              'method="\$request_method" '
                              'proto="\$server_protocol" '
                              'rt=\$request_time '

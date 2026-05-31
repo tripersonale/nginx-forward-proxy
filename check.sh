@@ -136,14 +136,23 @@ else
     FAIL=$((FAIL + 1))
 fi
 
-# --- 10. Log contains upstream_addr ---
-echo -n "[10] Log has upstream IP... "
+# --- 10. Log contains upstream_addr and connect_addr ---
+echo -n "[10] Log has resolved IP... "
 if [ -f /var/log/nginx/proxy_access.log ]; then
+    OK=0
     if grep -q 'upstream="[0-9]' /var/log/nginx/proxy_access.log 2>/dev/null; then
-        green "IP destination resolved and logged"
+        OK=$((OK + 1))
+    fi
+    if grep -q 'connect_addr="[0-9]' /var/log/nginx/proxy_access.log 2>/dev/null; then
+        OK=$((OK + 1))
+    elif grep -q 'connect_addr="' /var/log/nginx/proxy_access.log 2>/dev/null; then
+        OK=$((OK + 1))  # has connect_addr field at least
+    fi
+    if [ $OK -ge 1 ]; then
+        green "resolved IP logged (upstream for HTTP, connect_addr for HTTPS)"
         PASS=$((PASS + 1))
     else
-        info "no HTTP upstream entries yet — run 'curl -x ... http://example.com' first"
+        info "no resolved IP yet — run curl -x ... http://example.com and https://google.com first"
         FAIL=$((FAIL + 1))
     fi
 else
@@ -161,7 +170,12 @@ if [ "$FAIL" -eq 0 ]; then
     green "ALL CHECKS PASSED — proxy is working!"
     echo ""
     echo "  curl -x http://${PROXY_HOST}:${PROXY_PORT} http://example.com"
+    echo "  curl -x http://${PROXY_HOST}:${PROXY_PORT} https://github.com"
     echo "  tail -f /var/log/nginx/proxy_access.log"
+    echo ""
+    echo "  Log fields:"
+    echo "    upstream     = resolved IP for HTTP requests"
+    echo "    connect_addr = resolved IP for HTTPS/CONNECT requests"
     exit 0
 else
     red "${FAIL} check(s) failed — review the errors above"

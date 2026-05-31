@@ -60,7 +60,8 @@ log_format forward_proxy '$remote_addr $remote_user [$time_local] '
 | `$http_referer` | Header Referer | `-` o `http://source.com` |
 | `$http_user_agent` | Browser/curl user agent | `curl/8.5.0` |
 | `$http_host` | **Hostname destinazione richiesto** | `httpbin.org` |
-| `$upstream_addr` | **IP:porta risolto del server upstream** | `34.234.10.121:80` |
+| `$upstream_addr` | **IP:porta risolto del server upstream (HTTP)** | `34.234.10.121:80` |
+| `$connect_addr` | **IP:porta risolto per CONNECT (HTTPS)** | `140.82.121.3:443` |
 | `$request_method` | GET, POST, CONNECT, HEAD | `CONNECT` |
 | `$server_protocol` | Protocollo | `HTTP/1.1` |
 | `$request_time` | Tempo totale richiesta (secondi) | `0.549` |
@@ -76,9 +77,11 @@ log_format forward_proxy '$remote_addr $remote_user [$time_local] '
 | `$ssl_cipher` | Cipher TLS (solo HTTPS) | `TLS_AES_256_GCM_SHA384` |
 | `$ssl_protocol` | Versione TLS (solo HTTPS) | `TLSv1.3` |
 
-**Perché** il campo critico è `$upstream_addr`: dopo che nginx risolve il DNS e si connette al server di destinazione, scrive l'IP:porta effettivo. Per le richieste HTTP standard, questo mostra esattamente dove è andata la connessione.
+**Perché** i due campi critici:
+- `$upstream_addr`: per HTTP, mostra l'IP:porta dove nginx ha inoltrato la richiesta.
+- `$connect_addr`: per HTTPS/CONNECT, mostra l'IP:porta risolto dal modulo proxy_connect prima del tunnel. **Disponibile solo dopo `proxy_connect;` nel blocco server.**
 
-**Nota su CONNECT (HTTPS)**: per le richieste CONNECT, `$upstream_addr` è sempre `-` perché il tunnel TCP non mantiene una connessione upstream nel senso HTTP del termine. L'hostname è comunque visibile in `$http_host`.
+**Nota su CONNECT (HTTPS)**: per le richieste CONNECT, `$upstream_addr` è sempre `-` (il tunnel TCP non ha connessione HTTP upstream). `$connect_addr` invece contiene l'IP risolto (es. `140.82.121.3:443`).
 
 ### 2.2 Resolver DNS
 
@@ -370,19 +373,19 @@ Se dà errore, NON fare reload finché l'errore non è risolto, altrimenti nginx
 ### 4.2 Richiesta HTTPS (CONNECT) autorizzata
 
 ```
-192.168.89.55 - [28/May/2026:11:11:50 +0000] "CONNECT httpbin.org:443 HTTP/1.1" 200 4700 "-" "curl/8.5.0" host="httpbin.org:443" upstream="-" method="CONNECT" proto="HTTP/1.1" rt=19.236 uct=- uht=-
+192.168.89.55 - [28/May/2026:11:11:50 +0000] "CONNECT github.com:443 HTTP/1.1" 200 587712 "-" "curl/8.5.0" host="github.com:443" upstream="-" connect_addr="140.82.121.3:443" method="CONNECT" proto="HTTP/1.1" rt=0.350 uct=- uht=-
 ```
 
 | Campo | Valore | Significato |
 |-------|--------|-------------|
-| request | `CONNECT httpbin.org:443` | Apertura tunnel |
+| request | `CONNECT github.com:443` | Apertura tunnel |
 | status | `200` | Tunnel stabilito |
-| size | `4700` | Byte scambiati nel tunnel |
-| **host** | `httpbin.org:443` | **Destinazione** — visibile anche per HTTPS |
-| **upstream** | `-` | Normale per CONNECT (tunnel TCP, nessuna connessione HTTP upstream) |
-| rt | `19.236s` | Il tunnel è rimasto aperto 19 secondi |
+| size | `587712` | Byte scambiati nel tunnel |
+| **host** | `github.com:443` | **Hostname destinazione** |
+| upstream | `-` | Normale per CONNECT (nessuna connessione HTTP upstream) |
+| **connect_addr** | `140.82.121.3:443` | **IP:porta RISOLTO dal modulo proxy_connect** |
+| rt | `0.350s` | Il tunnel è stato stabilito in 350ms |
 | uct | `-` | Non applicabile per CONNECT |
-| uht | `-` | Non applicabile per CONNECT |
 
 ### 4.3 Richiesta bloccata
 
