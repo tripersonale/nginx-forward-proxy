@@ -83,6 +83,8 @@ log_format forward_proxy '$remote_addr $remote_user [$time_local] '
 
 **Nota su CONNECT (HTTPS)**: per le richieste CONNECT, `$upstream_addr` è sempre `-` (il tunnel TCP non ha connessione HTTP upstream). `$connect_addr` invece contiene l'IP risolto (es. `140.82.121.3:443`).
 
+> **🔒 Privacy e GDPR**: `$remote_addr` (IP client) e `$http_host` (hostname visitato) sono **dati personali**. Se operi in contesti soggetti a GDPR, NIS2 o D.Lgs 196, assicurati di: (1) base giuridica per il logging, (2) retention definita, (3) informare gli utenti che il traffico passa da un proxy che registra metadata.
+
 ### 2.2 Resolver DNS
 
 ```nginx
@@ -527,6 +529,21 @@ logrotate -f /etc/logrotate.d/nginx-proxy
 curl -x http://192.168.89.139:3128 http://httpbin.org/ip
 curl -x http://192.168.89.139:3128 https://httpbin.org/ip
 ```
+
+---
+
+## 8. Limiti noti
+
+| Limite | Impatto | Mitigazione |
+|--------|---------|-------------|
+| $connect_addr funziona solo se proxy_connect è dichiarato nel server block | HTTPS senza CONNECT non logga IP risolto | Assicurarsi che `proxy_connect;` sia presente (Step 9) |
+| CONNECT supporta solo HTTP/1.x, non HTTP/2 | Connessioni HTTP/2 verso il proxy sono downgradate | Non mitigabile — limitazione del modulo |
+| Auth basic in chiaro (base64) | Credenziali visibili a chi intercetta il traffico LAN | Usare solo su rete fidata; per produzione, aggiungere TLS al proxy |
+| WebSocket non testato | Potrebbe non funzionare in tutti i casi | Aprire una issue su GitHub se necessario |
+| Rate limiting non attivo per default | Un client può saturare il proxy | Seguire §5.3 per configurare `limit_req_zone` |
+| Nessun monitoring/alerting | Non ci sono notifiche se il proxy smette di funzionare | Abbinare a strumenti esterni (Uptime Kuma, Prometheus + Blackbox Exporter) |
+| Nessuna cifratura a riposo per i log | I log contengono IP in chiaro sul disco | Crittografia a livello di filesystem (LUKS) o retention aggressiva |
+| $remote_addr loggato = dato personale GDPR | Necessaria base giuridica per il trattamento | Vedi nota privacy §2.1 |
 
 ---
 
