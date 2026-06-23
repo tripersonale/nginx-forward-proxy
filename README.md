@@ -843,6 +843,80 @@ grep ' 403 ' /var/log/nginx/proxy_access.log | wc -l
 
 ---
 
+## Manutenzione sicurezza
+
+### 🟡 Attenzione: nginx è compilato staticamente contro OpenSSL
+
+Le librerie `libssl-dev`, `libpcre2-dev`, `zlib1g-dev` sono pacchetti Ubuntu — ricevono aggiornamenti di sicurezza via `apt upgrade`. Per PCRE2 e zlib (collegate dinamicamente) questo basta.
+
+**OpenSSL è diverso**: nginx viene compilato **staticamente** contro OpenSSL. Se esce un CVE critico in OpenSSL (es. Heartbleed-style), il fix via `apt upgrade` non raggiunge nginx — va ricompilato.
+
+### 🔍 Come verificare la versione OpenSSL in uso da nginx
+
+```bash
+/usr/local/nginx/sbin/nginx -V 2>&1 | grep -i openssl
+```
+
+📺 Output atteso: `built with OpenSSL 3.5.5 27 Jan 2026`
+
+Confrontala con la versione installata da apt:
+
+```bash
+openssl version
+```
+
+Se differiscono, nginx usa la vecchia — va ricompilato.
+
+### 📬 Come tenersi aggiornati su CVE
+
+| Cosa monitorare | Dove | Frequenza |
+|----------------|------|-----------|
+| nginx security advisories | `https://nginx.org/en/security_advisories.html` | Ogni nuovo rilascio |
+| OpenSSL vulnerabilities | `https://www.openssl.org/news/vulnerabilities.html` | Mensile |
+| Ubuntu security notices | `apt list --upgradable 2>/dev/null \| grep -E 'openssl\|pcre2\|zlib'` | Dopo ogni `apt update` |
+
+### 🔧 Ricompilazione rapida (quando OpenSSL si aggiorna)
+
+```bash
+# 1. Aggiorna le librerie di sistema
+apt-get update && apt-get upgrade -y libssl-dev libpcre2-dev zlib1g-dev
+
+# 2. Ricompila solo nginx (non serve riscaricare i sorgenti)
+cd /tmp/nginx-build/nginx-1.26.3
+make clean
+./configure \
+    --prefix=/usr/local/nginx \
+    --with-http_ssl_module \
+    --add-module=../ngx_http_proxy_connect_module \
+    --with-http_stub_status_module \
+    --with-http_realip_module \
+    --with-http_v2_module \
+    --with-stream \
+    --with-stream_ssl_module \
+    --with-compat \
+    --with-cc-opt='-Wno-error=unterminated-string-initialization'
+make -j$(nproc)
+make install
+
+# 3. Riavvia nginx
+systemctl restart nginx
+
+# 4. Verifica che la nuova versione OpenSSL sia linkata
+/usr/local/nginx/sbin/nginx -V 2>&1 | grep -i openssl
+```
+
+### 🧩 Tabella riepilogo dipendenze
+
+| Libreria | Collegamento a nginx | Aggiornamenti auto? | Cosa fare in caso di CVE |
+|----------|---------------------|-------------------|--------------------------|
+| OpenSSL | Statico (compilata dentro) | ❌ `apt upgrade` non basta | Ricompilare nginx (vedi sopra) |
+| PCRE2 | Dinamico (`.so` a runtime) | ✅ Basta `apt upgrade` | Nulla, Ubuntu lo fixa |
+| zlib | Dinamico (`.so` a runtime) | ✅ Basta `apt upgrade` | Nulla, Ubuntu lo fixa |
+| nginx 1.26.3 | — | ❌ Nessuno | Seguire advisories nginx.org |
+| proxy_connect_module | Statico (compilata dentro) | ❌ Nessuno | Rischio basso (superficie minima) |
+
+---
+
 ## Troubleshooting
 
 ### `connect() to [2a00:...]:443 failed (101: Network is unreachable)`
