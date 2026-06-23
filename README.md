@@ -620,23 +620,23 @@ Deve mostrare il contenuto del file che hai appena scritto. Se il file è vuoto,
 ### 📋 Comandi (uno alla volta — sostituisci `IL_TUO_SUBNET` con la tua rete)
 
 ```bash
-ufw --force enable
 ufw default deny incoming
 ufw default allow outgoing
 ufw allow from IL_TUO_SUBNET to any port 22 proto tcp comment 'SSH'
 ufw allow from IL_TUO_SUBNET to any port 3128 proto tcp comment 'nginx proxy'
+ufw --force enable
 ```
 
 ### 📺 Output atteso
 
 ```
-Firewall is active and enabled on system startup
 Default incoming policy changed to 'deny'
 (be sure to update your rules accordingly)
 Default outgoing policy changed to 'allow'
 (be sure to update your rules accordingly)
 Rule added
 Rule added
+Firewall is active and enabled on system startup
 ```
 
 ### ⚠️ Importante
