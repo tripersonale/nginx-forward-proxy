@@ -107,9 +107,9 @@ else
     FAIL=$((FAIL + 1))
 fi
 
-# --- 8. Block unauthorized (127.0.0.1 non è nella LAN) ---
+# --- 8. Block unauthorized (usa 127.0.0.3 come source IP, non autorizzato) ---
 echo -n "[8] Block unauthorized... "
-if OUT=$(curl -x "http://127.0.0.1:${PROXY_PORT}" -s -o /dev/null -w "%{http_code}" --connect-timeout 3 http://example.com 2>/dev/null); then
+if OUT=$(curl --interface 127.0.0.3 -x "http://127.0.0.1:${PROXY_PORT}" -s -o /dev/null -w "%{http_code}" --connect-timeout 3 http://example.com 2>/dev/null); then
     if [ "$OUT" = "403" ]; then
         green "403 (blocked by nginx)"
         PASS=$((PASS + 1))

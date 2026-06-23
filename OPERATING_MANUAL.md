@@ -532,7 +532,40 @@ curl -x http://192.168.89.139:3128 https://httpbin.org/ip
 
 ---
 
-## 8. Limiti noti
+## 8. Errori comuni e soluzioni
+
+### SSH lockout dopo `ufw --force enable`
+
+**Sintomo**: dopo aver eseguito `ufw --force enable`, la connessione SSH cade e non si riesce più a entrare.
+
+**Causa**: La subnet nelle regole UFW (Step 11 del README) non include l'IP da cui ti stai connettendo. UFW blocca il traffico in entrata e la tua nuova connessione SSH viene scartata.
+
+**Esempio**: la guida usa `192.168.89.0/24` come subnet di esempio, ma la tua macchina è su `192.168.122.0/24`. UFW permette SSH solo da `192.168.89.0/24`, quindi la tua connessione da `192.168.122.1` viene bloccata.
+
+**Soluzione preventiva** (consigliata):
+Prima di eseguire `ufw --force enable`, verifica la tua subnet:
+```bash
+ip -o addr show | grep -v 127.0.0.1 | grep 'inet ' | awk '{print $4}'
+```
+Usa SOLO quella subnet nelle regole UFW, non quella della guida.
+
+**Soluzione di recovery** (se già bloccato):
+1. Accedi alla console fisica / virtuale della macchina (IPMI, iLO, VM console, Proxmox console)
+2. `sudo ufw disable`
+3. Verifica la subnet corretta
+4. Riapplica le regole con la subnet giusta
+
+### `gcc` output non corrisponde esattamente
+
+**Sintomo**: il comando `gcc --version` mostra una versione leggermente diversa (es. `15.2.0-16ubuntu1` invece di `15.2.0`).
+
+**Causa**: aggiornamenti di pacchetto. La guida è stata testata con una revisione specifica.
+
+**Soluzione**: è normale. Finché vedi `gcc (Ubuntu 15.x.x...)` e il numero di versione inizia con `15`, sei a posto.
+
+---
+
+## 9. Limiti noti
 
 | Limite | Impatto | Mitigazione |
 |--------|---------|-------------|

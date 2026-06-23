@@ -30,6 +30,29 @@ Ogni richiesta che passa dal proxy viene LOGGATA con:
 | Tastiera e schermo | O SSH, va bene lo stesso |
 | Essere **root** | Se non sai cosa significa: `sudo -i` e inserisci la password |
 
+### 🌐 Trova la tua rete locale (fondamentale!)
+
+Prima di iniziare, devi sapere qual è la subnet della tua rete locale. La userai nei passi 9 e 11 per permettere l'accesso al proxy solo ai computer autorizzati.
+
+**Se non la imposti correttamente**, al passo 11 perderai l'accesso SSH alla macchina!
+
+Esegui questo comando **da un terminale sulla macchina dove stai installando il proxy** (non dal portatile!):
+
+```bash
+ip -o addr show | grep -v 127.0.0.1 | grep 'inet ' | awk '{print $4}'
+```
+
+📺 Output atteso (esempi):
+```
+192.168.1.100/24
+10.0.0.5/8
+192.168.122.8/24
+```
+
+Prendi la **parte /rete** (es. `192.168.1.0/24`, `192.168.122.0/24`, `10.0.0.0/8`) e tienila da parte. La chiameremo `$SUBNET`.
+
+Se non capisci cosa significa, chiedi a chi ti ha dato la macchina: "Qual è l'indirizzo della mia rete locale? Tipo 192.168.1.x?"
+
 ### ⏱️ Tempo totale
 
 Circa **15-20 minuti** (dipende dalla velocità della CPU per la compilazione).
@@ -460,6 +483,10 @@ http {
         listen 3128;
         server_name _;
 
+        # Permetti accesso dalla macchina stessa (per test locali)
+        allow 127.0.0.1;
+        allow ::1;
+        # CAMBIA CON LA TUA RETE: allow 192.168.1.0/24;
         allow 192.168.89.0/24;
         deny all;
 
@@ -492,9 +519,23 @@ EOF
 
 Nessun output. Il comando `cat > file << 'EOF'` scrive tutto quello che c'è tra `<< 'EOF'` e `EOF` nel file. Se non vedi errori, ha funzionato.
 
-### ⚠️ Importante
+### ⚠️ Importante — DEVI cambiare la subnet!
 
-La riga `allow 192.168.89.0/24;` significa "permetti solo ai computer della rete 192.168.89.x". **Devi cambiarla** con la tua rete! Se non sai qual è la tua rete, salta questo warning per ora — limiterai l'accesso dopo.
+`allow 192.168.89.0/24;` è un esempio. **Devi sostituirlo** con la tua subnet (quella che hai trovato in §Prima di cominciare).
+
+Se non lo fai, succede questo:
+- **Prova dalla stessa macchina**: bloccato (127.0.0.1 non è autorizzato) — Test 3 sotto controlla che sia bloccato
+- **Da un'altra macchina sulla LAN**: funziona SOLO se la tua LAN è 192.168.89.x
+- **Perdita SSH** se anche le regole UFW (Step 11) usano la subnet sbagliata!
+
+Come cambiare: nel blocco `server { }`, sostituisci `192.168.89.0/24` con la tua rete:
+
+```nginx
+allow IL_TUO_SUBNET;     # ← esempio: allow 192.168.122.0/24;
+deny all;
+```
+
+**Consiglio**: tieni anche `allow 127.0.0.1;` prima di `deny all;` così puoi testare il proxy dalla macchina stessa senza dover usare un altro computer.
 
 ### ✅ Checkpoint
 
@@ -566,14 +607,24 @@ Deve mostrare il contenuto del file che hai appena scritto. Se il file è vuoto,
 
 ⏱️ Tempo: **20 secondi**
 
-### 📋 Comandi (uno alla volta)
+> ⚠️ **ATTENZIONE — RISCHIO LOCKOUT**: Se la subnet che usi qui NON corrisponde a quella da cui ti stai connettendo in SSH, **perderai l'accesso alla macchina** subito dopo `ufw --force enable`. L'unico modo per recuperare è accedere fisicamente alla console (o via IPMI/iLO/VM console).
+> 
+> **Prima di eseguire**, verifica che la subnet qui sotto sia quella giusta. Se hai dubbi, aggiungi la tua IP pubblica attuale:
+> ```bash
+> # Trova il tuo IP attuale
+> curl -s ifconfig.me
+> # Aggiungilo come regola extra
+> ufw allow from TUO_IP to any port 22 proto tcp comment 'SSH emergency'
+> ```
+
+### 📋 Comandi (uno alla volta — sostituisci `IL_TUO_SUBNET` con la tua rete)
 
 ```bash
 ufw --force enable
 ufw default deny incoming
 ufw default allow outgoing
-ufw allow from 192.168.89.0/24 to any port 22 proto tcp comment 'SSH'
-ufw allow from 192.168.89.0/24 to any port 3128 proto tcp comment 'nginx proxy'
+ufw allow from IL_TUO_SUBNET to any port 22 proto tcp comment 'SSH'
+ufw allow from IL_TUO_SUBNET to any port 3128 proto tcp comment 'nginx proxy'
 ```
 
 ### 📺 Output atteso
@@ -581,14 +632,16 @@ ufw allow from 192.168.89.0/24 to any port 3128 proto tcp comment 'nginx proxy'
 ```
 Firewall is active and enabled on system startup
 Default incoming policy changed to 'deny'
+(be sure to update your rules accordingly)
 Default outgoing policy changed to 'allow'
+(be sure to update your rules accordingly)
 Rule added
 Rule added
 ```
 
 ### ⚠️ Importante
 
-La subnet `192.168.89.0/24` negli ultimi due comandi DEVE corrispondere a quella nel file di configurazione (Step 9). Se usi una rete diversa, cambiala in entrambi i posti.
+La subnet in questi due comandi DEVE corrispondere a quella nel file di configurazione (Step 9).
 
 ### ✅ Checkpoint
 
@@ -713,7 +766,7 @@ Vedi `200 Connection established`? ✅ Anche HTTPS funziona.
 ### Test 3: Blocco IP non autorizzato
 
 ```bash
-curl -x http://127.0.0.1:3128 http://httpbin.org/ip
+curl --interface 127.0.0.3 -x http://127.0.0.1:3128 http://httpbin.org/ip
 ```
 
 📺 Output atteso:
@@ -724,7 +777,9 @@ curl -x http://127.0.0.1:3128 http://httpbin.org/ip
 ...
 ```
 
-Vedi `403 Forbidden`? ✅ Il blocco funziona (127.0.0.1 non è nella tua LAN).
+Vedi `403 Forbidden`? ✅ Il blocco funziona (127.0.0.3 non è nella rete autorizzata).
+
+> `--interface 127.0.0.3` forza curl a fare la richiesta da un IP di loopback DIVERSO da 127.0.0.1. Nginx vede client=127.0.0.3, che non è autorizzato dalla regola `allow 127.0.0.1;`, e risponde 403.
 
 ### Test 4: Controlla i log
 
@@ -829,6 +884,18 @@ Ubuntu 26.04 ha rimosso PCRE1.
 Il gruppo `nogroup` non esiste sul tuo sistema.
 
 📋 Soluzione: nel file di configurazione, cambia `user nobody nogroup;` in `user nobody root;`. Poi `nginx -t && systemctl reload nginx`.
+
+### `ssh: connect to host ... port 22: Connection refused` (lockout dopo ufw)
+
+Hai eseguito `ufw --force enable` con la subnet sbagliata e hai perso l'accesso SSH.
+
+📋 Soluzione: accedi alla console fisica/virtuale della macchina (IPMI, iLO, VM console) ed esegui:
+```bash
+sudo ufw disable
+```
+Poi verifica la subnet corretta con `ip -o addr show | grep 'inet '` e riapplica le regole.
+
+**Prevenzione**: prima di `ufw --force enable`, leggi il warning allo Step 11. Se hai dubbi, testa le regole UFW una per una su una console non SSH.
 
 ### `htpasswd: command not found` (solo se usi l'auth)
 
