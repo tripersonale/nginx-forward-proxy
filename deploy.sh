@@ -12,7 +12,7 @@ set -euo pipefail
 
 SUBNET="${1:-192.168.89.0/24}"
 PORT="${2:-3128}"
-NGINX_VERSION="1.26.3"
+NGINX_VERSION="1.30.4"
 NGINX_DIR="/usr/local/nginx"
 LOG_DIR="/var/log/nginx"
 PID_FILE="/var/run/nginx.pid"
@@ -37,15 +37,19 @@ wget -q "https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz" -O nginx.tar.
 tar xzf nginx.tar.gz
 
 # ---------- Step 3: Clone proxy_connect module ----------
-echo "[3/8] Clone ngx_http_proxy_connect_module..."
-git clone -q https://github.com/chobits/ngx_http_proxy_connect_module.git
+# NB: usiamo il fork believe4832 perché chobits upstream è fermo ad agosto 2024
+#     e non supporta nginx 1.28+. Il fork aggiunge solo 4 righe (.c) per
+#     impostare cscf->allow_connect=1, richiesto da nginx 1.30+.
+#     Vedi README.md §"Module source" per dettagli e audit.
+echo "[3/8] Clone ngx_http_proxy_connect_module (fork believe4832 per nginx 1.30+)..."
+git clone -q https://github.com/believe4832/ngx_http_proxy_connect_module.git
 
 # ---------- Step 4: Patch and configure ----------
 echo "[4/8] Patch and configure nginx..."
 cd "nginx-${NGINX_VERSION}"
 
-# Applica la patch per la versione corretta di nginx
-patch -p1 < ../ngx_http_proxy_connect_module/patch/proxy_connect_rewrite_102101.patch
+# Applica la patch per nginx 1.30.x (proxy_connect_rewrite_103004.patch)
+patch -p1 < ../ngx_http_proxy_connect_module/patch/proxy_connect_rewrite_103004.patch
 
 # Configura nginx con:
 #   - proxy_connect_module per CONNECT/HTTPS

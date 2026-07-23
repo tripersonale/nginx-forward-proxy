@@ -19,6 +19,75 @@ Ogni richiesta che passa dal proxy viene LOGGATA con:
 
 ---
 
+## Versioni supportate
+
+| Versione | nginx | Module | Stato | Manuale |
+|----------|-------|--------|-------|---------|
+| **v1.1.x** | 1.30.4 | `believe4832` fork | ✅ **Corrente** | Questo README + `UPGRADE.md` |
+| v1.0.x | 1.26.3 | `chobits` upstream | ⚠️ **Legacy** (14+ CVE note) | Tag git `v1.0` |
+
+Se hai un deploy v1.0.x in produzione, segui [`UPGRADE.md`](./UPGRADE.md)
+per aggiornare a v1.1.x **senza perdita di dati**.
+
+Per monitoring CVE continuo, vedi [`CVE_MONITORING.md`](./CVE_MONITORING.md).
+
+---
+
+## Module source
+
+Questa guida usa il fork **`believe4832/ngx_http_proxy_connect_module`**
+invece dell'upstream `chobits/ngx_http_proxy_connect_module`.
+
+**Perché non l'upstream?**
+
+- `chobits` upstream è fermo ad agosto 2024 (ultima patch per nginx 1.27.1)
+- Issue per "support nginx-1.28+" aperte da mesi senza risposta (issue #339 etc.)
+- La patch upstream `proxy_connect_rewrite_102101.patch` **non si applica**
+  a nginx 1.28+: 2 hunk falliscono perché nginx 1.30 ha aggiunto la
+  direttiva nativa `allow_connect` che rompe la patch vecchia
+
+**Cosa aggiunge il fork `believe4832`?**
+
+Esattamente **4 righe di codice** nel file `ngx_http_proxy_connect_module.c`
+(commit `support nginx-1.30.4` del 2026-07-21):
+
+```c
+ngx_http_core_srv_conf_t  *cscf;
+// ...
+cscf = ngx_http_conf_get_module_srv_conf(cf, ngx_http_core_module);
+cscf->allow_connect = 1;
+```
+
+Queste 4 righe impostano `allow_connect = 1` nel server config quando la
+direttiva `proxy_connect` è attiva — richiesto da nginx 1.30+ per accettare
+il method CONNECT (in precedenza nginx rifiutava sempre CONNECT con 405).
+
+**Audit di sicurezza**
+
+| Aspetto | Verifica |
+|---------|---------|
+| Diff dimensioni .c | 2386 → 2390 righe (+4) ✅ |
+| Diff contenuto | Solo le 4 righe sopra, in funzione `ngx_http_proxy_connect` ✅ |
+| File `config` | Identico all'upstream ✅ |
+| File README.md | Identico all'upstream ✅ |
+| Altri file modificati | Nessuno ✅ |
+
+Diff completo visibile con:
+```bash
+diff <(curl -s https://raw.githubusercontent.com/chobits/ngx_http_proxy_connect_module/master/ngx_http_proxy_connect_module.c) \
+     <(curl -s https://raw.githubusercontent.com/believe4832/ngx_http_proxy_connect_module/master/ngx_http_proxy_connect_module.c)
+```
+
+**Ritorno all'upstream**
+
+Se `chobits` riprende lo sviluppo (issue #339 mergeata), torniamo all'upstream
+rimuovendo il fork e usando la sua nuova patch. Fino ad allora, il fork
+`believe4832` è l'unica via per nginx 1.28+.
+
+**Licenza**: invariata rispetto all'upstream (BSD-2-Clause).
+
+---
+
 ## Prima di cominciare
 
 ### 🧰 Cosa ti serve
@@ -173,8 +242,8 @@ Deve mostrare `gcc (Ubuntu 15.2.0...)`. Se vedi `command not found`, hai saltato
 
 ```bash
 mkdir -p /tmp/nginx-build && cd /tmp/nginx-build
-wget https://nginx.org/download/nginx-1.26.3.tar.gz
-tar xzf nginx-1.26.3.tar.gz
+wget https://nginx.org/download/nginx-1.30.4.tar.gz
+tar xzf nginx-1.30.4.tar.gz
 ```
 
 ### 📺 Output atteso
@@ -182,7 +251,7 @@ tar xzf nginx-1.26.3.tar.gz
 `wget` mostra una barra di progresso:
 
 ```
-nginx-1.26.3.tar.gz  100%[===================>]   1.23M  --.-KB/s    in 0.1s
+nginx-1.30.4.tar.gz  100%[===================>]   1.23M  --.-KB/s    in 0.1s
 ```
 
 `tar` non produce output (nessuna notizia = buona notizia).
@@ -190,7 +259,7 @@ nginx-1.26.3.tar.gz  100%[===================>]   1.23M  --.-KB/s    in 0.1s
 ### ✅ Checkpoint
 
 ```bash
-ls nginx-1.26.3/
+ls nginx-1.30.4/
 ```
 
 Deve mostrare file come `configure`, `src`, `conf`, ecc. Se vedi `No such file or directory`, qualcosa è andato storto nel download o nell'estrazione.
@@ -206,7 +275,7 @@ Questo modulo aggiunge a nginx il metodo CONNECT, indispensabile per il proxy HT
 ### 📋 Comando
 
 ```bash
-git clone https://github.com/chobits/ngx_http_proxy_connect_module.git
+git clone https://github.com/believe4832/ngx_http_proxy_connect_module.git
 ```
 
 ### 📺 Output atteso
@@ -235,9 +304,9 @@ Deve mostrare file che iniziano con `proxy_connect_rewrite_`. Se la cartella è 
 ### 📋 Comandi (copiare TUTTO INSIEME)
 
 ```bash
-cd nginx-1.26.3
+cd nginx-1.30.4
 
-patch -p1 < ../ngx_http_proxy_connect_module/patch/proxy_connect_rewrite_102101.patch
+patch -p1 < ../ngx_http_proxy_connect_module/patch/proxy_connect_rewrite_103004.patch
 
 ./configure \
     --prefix=/usr/local/nginx \
@@ -295,7 +364,7 @@ Deve esistere. Se vedi `No such file or directory`, `./configure` è fallito.
 
 ### ❌ Se fallisce
 
-- `patch: **** malformed patch` → stai usando la versione sbagliata di nginx. Questa guida funziona con nginx 1.26.3. Controlla di aver scaricato la versione giusta allo Step 3.
+- `patch: **** malformed patch` → stai usando la versione sbagliata di nginx. Questa guida funziona con nginx 1.30.4. Controlla di aver scaricato la versione giusta allo Step 3.
 - `./configure: error: the HTTP rewrite module requires the PCRE library` → ti manca `libpcre2-dev`. Torna allo Step 2.
 - `fatal error: crypt.h: No such file or directory` → ti manca `libcrypt-dev`. Torna allo Step 2.
 - Se vedi altri errori, vai a §Troubleshooting in fondo alla guida.
@@ -320,7 +389,7 @@ L'output inizia con:
 
 ```
 make -f objs/Makefile
-make[1]: Entering directory '/root/build/nginx-1.26.3'
+make[1]: Entering directory '/root/build/nginx-1.30.4'
 cc -c ... -o objs/src/core/nginx.o src/core/nginx.c
 cc -c ... -o objs/src/core/ngx_log.o src/core/ngx_log.c
 ```
@@ -335,7 +404,7 @@ objs/src/core/nginx.o \
 ... (tanti file .o) ...
 -lcrypt -lpcre2-8 -lssl -lcrypto -lz \
 -Wl,-E
-make[1]: Leaving directory '/root/build/nginx-1.26.3'
+make[1]: Leaving directory '/root/build/nginx-1.30.4'
 ```
 
 ### ✅ Checkpoint
@@ -388,13 +457,13 @@ make[1]: Leaving directory
 Deve mostrare (le righe importanti):
 
 ```
-nginx version: nginx/1.26.3
+nginx version: nginx/1.30.4
 built with OpenSSL 3.5.5 27 Jan 2026
 TLS SNI support enabled
 configure arguments: ... --add-module=../ngx_http_proxy_connect_module ...
 ```
 
-Se vedi `nginx version: nginx/1.26.3` e `--add-module=../ngx_http_proxy_connect_module`, tutto ok.
+Se vedi `nginx version: nginx/1.30.4` e `--add-module=../ngx_http_proxy_connect_module`, tutto ok.
 
 ### ❌ Se fallisce
 
@@ -738,7 +807,7 @@ curl -x http://localhost:3128 -v http://example.com
 > Host: example.com
 ...
 < HTTP/1.1 200 OK
-< Server: nginx/1.26.3
+< Server: nginx/1.30.4
 ...
 <!doctype html>...Example Domain...
 ```
@@ -882,7 +951,7 @@ Se differiscono, nginx usa la vecchia — va ricompilato.
 apt-get update && apt-get upgrade -y libssl-dev libpcre2-dev zlib1g-dev
 
 # 2. Ricompila solo nginx (non serve riscaricare i sorgenti)
-cd /tmp/nginx-build/nginx-1.26.3
+cd /tmp/nginx-build/nginx-1.30.4
 make clean
 ./configure \
     --prefix=/usr/local/nginx \
@@ -912,7 +981,7 @@ systemctl restart nginx
 | OpenSSL | Statico (compilata dentro) | ❌ `apt upgrade` non basta | Ricompilare nginx (vedi sopra) |
 | PCRE2 | Dinamico (`.so` a runtime) | ✅ Basta `apt upgrade` | Nulla, Ubuntu lo fixa |
 | zlib | Dinamico (`.so` a runtime) | ✅ Basta `apt upgrade` | Nulla, Ubuntu lo fixa |
-| nginx 1.26.3 | — | ❌ Nessuno | Seguire advisories nginx.org |
+| nginx 1.30.4 | — | ❌ Nessuno | Seguire advisories nginx.org |
 | proxy_connect_module | Statico (compilata dentro) | ❌ Nessuno | Rischio basso (superficie minima) |
 
 ---
@@ -935,7 +1004,7 @@ Poi: `systemctl reload nginx`
 
 La patch non corrisponde alla versione di nginx.
 
-📋 Soluzione: assicurati di aver scaricato **nginx 1.26.3** esattamente. Versioni diverse richiedono patch diverse. Controlla: https://github.com/chobits/ngx_http_proxy_connect_module#version-compatibility
+📋 Soluzione: assicurati di aver scaricato **nginx 1.30.4** esattamente. Versioni diverse richiedono patch diverse. Questa guida usa il fork `believe4832/ngx_http_proxy_connect_module` (commit `support nginx-1.30.4` del 2026-07-21) perché chobits upstream è fermo ad agosto 2024 e non supporta nginx 1.28+. Vedi `README.md` §"Module source".
 
 ### `make: *** [...] Error 1` (errore HTTP/2 module)
 
@@ -992,5 +1061,5 @@ systemctl daemon-reload
 
 ---
 
-*Istruzioni valide per: Ubuntu 26.04 LTS (Resolute Raccoon), nginx 1.26.3, ngx_http_proxy_connect_module.*
-*Ultimo test: Maggio 2026.*
+*Istruzioni valide per: Ubuntu 26.04 LTS (Resolute Raccoon), nginx 1.30.4, ngx_http_proxy_connect_module (fork believe4832).*
+*Ultimo test: Luglio 2026.*

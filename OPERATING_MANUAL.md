@@ -485,6 +485,10 @@ http {
 
 ## 6. Checklist manutenzione periodica
 
+> Per il monitoring CVE strutturato (nginx advisories, OpenSSL, module fork,
+> Ubuntu USN), vedi [`CVE_MONITORING.md`](./CVE_MONITORING.md).
+> Per l'upgrade del binario senza perdita dati, vedi [`UPGRADE.md`](./UPGRADE.md).
+
 ```bash
 # Ogni giorno
 tail -20 /var/log/nginx/proxy_error.log        # Errori recenti
@@ -494,11 +498,14 @@ grep ' 403 ' /var/log/nginx/proxy_access.log | tail -10  # Blocchi
 df -h /var/log                                  # Spazio disco
 du -sh /var/log/nginx/                          # Dimensione log
 systemctl status nginx                          # Servizio attivo
+# + check nginx security advisories (https://nginx.org/en/security_advisories.html)
 
 # Ogni mese
 logrotate -f /etc/logrotate.d/nginx-proxy       # Forza rotazione log
 /usr/local/nginx/sbin/nginx -t                  # Config ancora valida
-apt-get update && apt-get upgrade               # Patch sicurezza
+apt-get update && apt-get upgrade               # Patch sicurezza OS
+/usr/local/nginx/sbin/nginx -V 2>&1 | head -1   # Verifica versione nginx
+ubuntu-security-status                          # CVE sui pacchetti Ubuntu
 ```
 
 ---
