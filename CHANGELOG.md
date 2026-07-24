@@ -5,6 +5,25 @@ Tutte le modifiche notevoli di questo progetto saranno documentate in questo fil
 Il formato è basato su [Keep a Changelog](https://keepachangelog.com/it/1.1.0/),
 e questo progetto aderisce a [Semantic Versioning](https://semver.org/lang/it/spec/v2.0.0.html).
 
+## [1.1.2] — 2026-07-24
+
+### Changed
+- **README.md restruct**: da tutorial 1065 righe a index snello 189 righe
+  con badge, quick-start, mappa repo, pillole sicurezza, status, e
+  architettura. Il vecchio tutorial "12 step IKEA" è ora in `INSTALL.md`,
+  consultabile separatamente.
+- Aggiunti badge: License, Version, nginx version, Ubuntu version, last verified.
+- Maggiore chiarezza dei 3 scenari (install / upgrade / reference) con
+  tempi stimati e link rapidi.
+
+### Added
+- `INSTALL.md` — tutorial 12 step estratto da README. Stesso contenuto
+  di prima, ma separato dall'index. Per install fresh.
+
+### Note
+- Nessuna modifica al codice o al deploy. Solo riorganizzazione
+  documentale.
+
 ## [1.1.1] — 2026-07-24
 
 ### Fixed
