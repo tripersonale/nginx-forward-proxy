@@ -5,6 +5,22 @@ Tutte le modifiche notevoli di questo progetto saranno documentate in questo fil
 Il formato è basato su [Keep a Changelog](https://keepachangelog.com/it/1.1.0/),
 e questo progetto aderisce a [Semantic Versioning](https://semver.org/lang/it/spec/v2.0.0.html).
 
+## [1.1.1] — 2026-07-24
+
+### Fixed
+- `UPGRADE.md` §3: comando `tar` con `$(date)` in subshell SSH+sudo non
+  creava il file di backup. Fix: assegnare `BACKUP_DATE=$(date ...)`
+  nella shell locale prima di `sudo tar`.
+
+### Changed
+- `UPGRADE.md` FAQ: downtime realistico aggiornato da "5-10s" a
+  "~12s" (misurato in test end-to-end su VM KVM 4 vCPU/SSD).
+
+### Added
+- `UPGRADE.md` Appendice A: report verifica end-to-end su VM KVM dedicata
+  (Ubuntu 26.04 LTS, kernel 7.0.0). Tutti gli step da 1 a 9 verificati
+  con esito positivo, incluso rollback.
+
 ## [1.1.0] — 2026-07-22
 
 ### Security

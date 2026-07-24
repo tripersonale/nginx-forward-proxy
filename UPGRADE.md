@@ -62,11 +62,16 @@ Se la versione attuale è già ≥ 1.30.0, **non serve upgrade**.
 # Backup binario corrente (per rollback rapido)
 cp -a /usr/local/nginx/sbin/nginx /usr/local/nginx/sbin/nginx.1.26.3.bak
 
-# Backup config (non verrà toccato, ma meglio averlo)
-tar czf /root/nginx-config-backup-$(date +%Y%m%d).tar.gz \
+# Backup config (non verrà toccato, ma meglio averlo).
+# NB: usa BACKUP_DATE nella SHELL corrente prima di sudo, perché
+#     $(date) dentro un comando sudo via SSH remoto non si espande
+#     correttamente in alcuni setup (verificato in test 2026-07-24).
+BACKUP_DATE=$(date +%Y%m%d-%H%M%S)
+sudo tar -czf /root/nginx-config-backup-${BACKUP_DATE}.tar.gz \
     /usr/local/nginx/conf/ \
     /etc/systemd/system/nginx.service \
     /etc/logrotate.d/nginx-proxy
+sudo ls -la /root/nginx-config-backup-${BACKUP_DATE}.tar.gz
 
 # Snapshot della VM se è virtualizzata (Proxmox, etc.)
 # — opzionale ma fortemente consigliato per deploy production
@@ -267,9 +272,11 @@ R: Serve `restart` (stop + start). L'upgrade cambia il binario, non la
 config. `reload` non ricarica il binario, solo la configurazione.
 
 **D: Le connessioni attive vengono droppate?**
-R: Sì, durante lo stop. Il downtime è tipicamente 5-10 secondi. I client
-con retry automatico (curl, browser, la maggior parte degli HTTP client)
-non se ne accorgono.
+R: Sì, durante lo stop. Il downtime misurato in test end-to-end (VM KVM
+Ubuntu 26.04, 4 vCPU, SSD) è **~12 secondi** dal `systemctl stop` allo
+`start` post-`make install`. Su bare metal con storage veloce si scende
+a 5-8s. I client con retry automatico (curl, browser, la maggior parte
+degli HTTP client) non se ne accorgono.
 
 **D: La config 1.26.3 funziona su 1.30.4 senza modifiche?**
 R: Sì. La sintassi nginx è retro-compatibile tra stabili. L'unica
@@ -289,3 +296,37 @@ resta il forward proxy di riferimento.
 
 *Versione guida: 1.1.0 — 2026-07-22*
 *Procedura testata su: Ubuntu 26.04 LTS, nginx 1.26.3 → 1.30.4*
+
+## Appendice A — Verifica end-to-end (2026-07-24)
+
+Procedura eseguita passo-passo su VM KVM dedicata
+(`nginx-upgrade-test`, Ubuntu 26.04 LTS Resolute, kernel 7.0.0,
+4 vCPU, 4 GB RAM, 15 GB disco, NAT 192.168.122.0/24).
+
+| Step | Comando chiave | Esito | Note |
+|------|---------------|-------|------|
+| 1 | (verifica asset preservati) | ✅ | config/log/PID/systemd/UFW intatti post-upgrade |
+| 2 | `nginx -V`, `df /tmp`, `systemctl status` | ✅ | 1.26.3, 1.9 GB liberi, active running |
+| 3 | `cp nginx nginx.bak`, `tar config` | ⚠️ → ✅ | vedi nota sotto |
+| 4 | `wget 1.30.4`, `git clone believe4832` | ✅ | tarball 1.3 MB, patch presente |
+| 5 | `patch -p1`, `./configure ...` | ✅ | 4 file patched puliti, configure OK |
+| 6 | `make -j`, `objs/nginx -V`, `make install` | ✅ | sanity pre-install 1.30.4, install OK |
+| 7 | `nginx -t`, `systemctl start` | ✅ | syntax OK, downtime totale 12s |
+| 8 | `curl HTTP`, `curl HTTPS CONNECT` | ✅ | 200/200, `Server: nginx/1.30.4` |
+| 9 | rollback a 1.26.3 dal backup | ✅ | `nginx -t` OK, `Server: nginx/1.26.3` |
+
+**Nota Step 3**: il comando originale
+`sudo tar czf /root/nginx-config-backup-$(date +%Y%m%d).tar.gz ...`
+NON ha creato il file in ambiente SSH+sudo (la subshell `$(date)`
+non veniva espansa correttamente nel passaggio `ssh user@host 'sudo ...'`).
+Fix adottato: assegnare `BACKUP_DATE=$(date ...)` nella shell corrente
+prima di `sudo`. Comando aggiornato nella guida §3.
+
+**Log accessi preservato**: le righe di log del 1.26.3 (pre-upgrade)
+sono rimaste nel file `/var/log/nginx/proxy_access.log`, e le nuove
+richieste del 1.30.4 sono state appended dopo lo start. Nessuna riga
+persa.
+
+**Conclusione**: la procedura è verificata end-to-end e pronta per
+production. L'unico fix richiesto è il comando tar §3 (già applicato
+in questa versione della guida).
